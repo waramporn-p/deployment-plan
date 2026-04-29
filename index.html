@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Internal Deployment</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --navy:#1B2A4A;--blue:#3F5787;--blue-lt:#C5D3EC;
+  --orange:#B85B21;--orange-lt:#F2D5C4;
+  --green:#15803D;--green-lt:#DCFCE7;
+  --bg:#F1F5F9;--white:#fff;--border:#CBD5E1;
+  --text:#1E293B;--muted:#64748B;--red:#DC2626;
+}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:13px}
+
+/* ── HEADER ── */
+.hdr{background:var(--navy);color:#fff;padding:6px 14px;display:flex;align-items:center;gap:10px;flex-wrap:nowrap;position:sticky;top:0;z-index:200;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.hdr-title{font-size:14px;font-weight:700;flex-shrink:0;white-space:nowrap}
+.hdr-sub{font-size:9px;color:#90C4E8;margin-top:1px;white-space:nowrap}
+.stats{display:flex;gap:8px;flex-wrap:nowrap}
+.stat-chip{background:rgba(255,255,255,.12);border-radius:20px;padding:2px 8px;font-size:10px;white-space:nowrap}
+.stat-chip b{color:#fff}
+.hdr-actions{margin-left:auto;display:flex;gap:5px;flex-shrink:0;align-items:center}
+.btn{padding:3px 9px;border-radius:5px;border:none;cursor:pointer;font-size:10px;font-weight:600;transition:opacity .15s;white-space:nowrap}
+.btn:hover{opacity:.85}
+.btn-primary{background:var(--blue);color:#fff}
+.btn-success{background:var(--green);color:#fff}
+.btn-outline{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3)}
+
+/* ── INFO POPOVER ── */
+.info-btn{width:16px;height:16px;border-radius:50%;border:1.5px solid rgba(255,255,255,.5);background:rgba(255,255,255,.15);color:#fff;font-size:9px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1;padding:0}
+.info-btn:hover{background:rgba(255,255,255,.3)}
+.info-popover{display:none;position:absolute;top:calc(100% + 8px);left:0;background:#1e2d48;border:1px solid #2d4268;border-radius:8px;padding:10px 14px;z-index:999;min-width:260px;box-shadow:0 6px 20px rgba(0,0,0,.4)}
+.info-popover.open{display:block}
+.info-popover::before{content:'';position:absolute;top:-5px;left:12px;width:8px;height:8px;background:#1e2d48;border-left:1px solid #2d4268;border-top:1px solid #2d4268;transform:rotate(45deg)}
+.info-row{font-size:10.5px;color:#CBD5E1;padding:3px 0;line-height:1.4}
+.info-row+.info-row{border-top:1px solid rgba(255,255,255,.07)}
+
+/* ── FILTERS ── */
+.filters{background:#fff;border-bottom:1px solid var(--border);padding:3px 14px;display:flex;gap:7px;align-items:center;position:sticky;top:42px;z-index:190;flex-wrap:wrap}
+.filters label{font-size:9.5px;color:var(--muted);font-weight:600;white-space:nowrap}
+.filters select, .filters input[type=text]{border:1px solid var(--border);border-radius:4px;padding:2px 6px;font-size:9.5px;color:var(--text);background:#fff}
+.filter-pills{display:flex;gap:4px;flex-wrap:wrap}
+.pill{padding:1px 8px;border-radius:12px;font-size:9.5px;cursor:pointer;border:1.5px solid var(--border);background:#fff;font-weight:600;transition:all .15s}
+.pill.active-fundii{background:var(--blue);color:#fff;border-color:var(--blue)}
+.pill.active-iic{background:var(--orange);color:#fff;border-color:var(--orange)}
+.pill.active-all{background:var(--navy);color:#fff;border-color:var(--navy)}
+
+/* ── GANTT WRAPPER ── */
+.gantt-wrap{overflow:auto;position:relative}
+.gantt-table{border-collapse:collapse;min-width:100%}
+
+/* ── FIXED LEFT COLUMNS ── */
+.col-team,.col-task{
+  position:sticky;background:#fff;z-index:100;border-right:1px solid var(--border);white-space:nowrap
+}
+.col-team{left:0;width:58px;min-width:58px}
+.col-task{left:58px;width:220px;min-width:220px;white-space:normal;word-break:break-word}
+
+
+/* ── HEADER ROW ── */
+.gantt-table thead tr.row-month th{background:var(--navy);color:#fff;height:30px;font-size:10px;font-weight:600;text-align:left;padding:0 4px;border-right:1px solid #2d4268}
+.gantt-table thead tr.row-week th{background:#F8FAFC;height:26px;font-size:9.5px;color:var(--muted);text-align:center;border-right:1px solid var(--border);border-bottom:2px solid var(--border);padding:0 2px;min-width:36px;max-width:36px;white-space:nowrap}
+.gantt-table thead .th-left{background:var(--navy);color:#fff;font-size:11px;font-weight:700;padding:4px 8px;border-right:1px solid #2d4268;vertical-align:middle}
+
+/* ── SECTION HEADER ROWS ── */
+.row-section td{background:var(--navy);color:#fff;font-size:11px;font-weight:700;padding:5px 8px;position:sticky;left:0}
+
+/* ── TASK ROWS ── */
+.gantt-table tbody tr.task-row{height:24px}
+.gantt-table tbody tr.task-row:hover td{background:#F8FAFC}
+.gantt-table tbody tr.task-row:hover .col-team,
+.gantt-table tbody tr.task-row:hover .col-task{background:#F0F6FF}
+
+.td-team{font-size:8px;font-weight:700;text-align:center;padding:1px 3px;border-bottom:1px solid #F1F5F9}
+.td-task{font-size:10px;padding:1px 7px;border-bottom:1px solid #F1F5F9;cursor:pointer;line-height:1.2}
+.td-task:hover{color:var(--blue);text-decoration:underline}
+
+
+/* ── GANTT CELLS ── */
+.gantt-table tbody td.gcell{
+  min-width:36px;max-width:36px;height:24px;
+  border-right:1px solid #E8EEF5;border-bottom:1px solid #F1F5F9;
+  padding:0;position:relative;cursor:crosshair;user-select:none;
+}
+.gcell-inner{position:absolute;inset:0;overflow:visible}
+.gcell.alt{background:rgba(240,244,250,.5)}
+.gcell.today{background:rgba(220,38,38,.06)}
+.gcell.today::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--red);z-index:10}
+.gcell.month-start{border-left:2px solid var(--border)}
+
+/* ── BARS ── */
+.bar{
+  position:absolute;
+  border-radius:4px;cursor:grab;
+  display:flex;align-items:center;padding-left:6px;
+  font-size:9px;font-weight:700;overflow:hidden;
+  box-shadow:0 1px 3px rgba(0,0,0,.15);
+  transition:filter .1s;
+  z-index:20;white-space:nowrap;
+}
+.bar:hover{filter:brightness(1.08)}
+.bar-dev{top:0;height:100%;border-radius:3px}
+.bar-qa{top:0;height:100%;border-radius:3px;opacity:.88}
+.bar.fundii-dev{background:var(--blue);color:#fff}
+.bar.fundii-qa{background:var(--blue-lt);color:#1B2A4A}
+.bar.iic-dev{background:var(--orange);color:#fff}
+.bar.iic-qa{background:var(--orange-lt);color:#7C3210}
+.bar-drag{cursor:grabbing}
+.bar-resize{
+  position:absolute;right:0;top:0;bottom:0;width:8px;
+  cursor:ew-resize;background:rgba(255,255,255,.25);
+  border-radius:0 4px 4px 0;
+}
+
+/* ── UNSCHEDULED ── */
+.unscheduled-hint{position:absolute;inset:4px;border:1.5px dashed #CBD5E1;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--muted);pointer-events:none;opacity:0}
+.task-row:hover .gcell:first-of-type .unscheduled-hint{opacity:1}
+
+/* ── MODAL ── */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:500;display:none;align-items:center;justify-content:center}
+.overlay.open{display:flex}
+.modal{background:#fff;border-radius:12px;padding:24px;width:420px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.modal h3{font-size:15px;margin-bottom:16px;color:var(--navy)}
+.modal-field{margin-bottom:12px}
+.modal-field label{display:block;font-size:11px;color:var(--muted);font-weight:600;margin-bottom:4px}
+.modal-field input,.modal-field select,.modal-field textarea{
+  width:100%;border:1.5px solid var(--border);border-radius:6px;
+  padding:7px 10px;font-size:12px;color:var(--text);
+}
+.modal-field textarea{resize:vertical;height:60px}
+.modal-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.modal-actions{display:flex;justify-content:space-between;margin-top:16px;gap:8px}
+.btn-danger{background:#FEE2E2;color:var(--red);border:1px solid #FECACA}
+.btn-gray{background:#F1F5F9;color:var(--muted);border:1px solid var(--border)}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:8px 20px;border-radius:20px;font-size:12px;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+
+
+/* ── LEGEND ── */
+.legend{display:flex;gap:16px;align-items:center;font-size:10.5px;color:var(--muted)}
+.leg-dot{width:12px;height:12px;border-radius:2px;flex-shrink:0}
+
+/* ── SPRINT ROW ── */
+.row-sprint td{height:18px;font-size:9px;font-weight:700;border-bottom:1px solid var(--border);padding:0}
+.row-sprint .sprint-label{background:#F8FAFC;color:var(--muted);text-align:center;padding:1px 4px;border-right:1px solid var(--border);font-size:9px}
+.row-sprint .sprint-cell{text-align:center;border-right:1px solid var(--border);letter-spacing:.3px}
+.row-sprint .sprint-cell.fundii-sp{background:#EBF0FA;color:var(--blue)}
+.row-sprint .sprint-cell.iic-sp{background:#FAF0EB;color:var(--orange)}
+.row-sprint .sprint-cell.sprint-gap{background:#F8FAFC}
+.row-sprint .col-team{background:#F8FAFC}
+.row-sprint .col-task{background:#F8FAFC;font-size:9px;font-weight:700;color:var(--muted);padding:0 6px}
+
+/* ── SPRINT DATE ROW ── */
+.row-sprint-date td{height:16px;font-size:8.5px;border-bottom:1px solid var(--border);padding:0}
+.row-sprint-date .col-team{background:#F8FAFC}
+.row-sprint-date .col-task{background:#F8FAFC;padding:0 6px;font-size:8px;color:#CBD5E1}
+.sprint-date-cell{text-align:center;border-right:1px solid var(--border);font-weight:600;letter-spacing:.2px}
+.sprint-date-cell.fundii-sp{background:#F3F6FD;color:#6B82B5}
+.sprint-date-cell.iic-sp{background:#FDF6F3;color:#C48060}
+.sprint-date-cell.sprint-gap{background:#F8FAFC}
+
+/* ── ROW REORDER DRAG ── */
+.grab-handle{font-size:13px;color:#94A3B8;cursor:grab;user-select:none;padding:0 3px;display:inline-block;vertical-align:middle}
+.grab-handle:hover{color:var(--blue)}
+.task-row.row-dragging{opacity:.35}
+.task-row.row-drag-over td{background:#EFF6FF !important}
+.task-row.row-drag-over .col-team,
+.task-row.row-drag-over .col-task{background:#EFF6FF !important;border-top:2px solid var(--blue)}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div style="display:flex;align-items:center;gap:7px;position:relative">
+    <div class="hdr-title">Internal Deployment</div>
+    <button class="info-btn" id="infoBtn" onclick="toggleInfoPopover(event)" title="How to use">?</button>
+    <div class="info-popover" id="infoPopover">
+      <div class="info-row">⠿ Drag handle to reorder rows</div>
+      <div class="info-row">🖱 Click task name to edit</div>
+      <div class="info-row">📌 Click empty cell → DEV bar</div>
+      <div class="info-row">⇧ Shift+click empty cell → QA bar</div>
+      <div class="info-row">↔ Drag bar to move · Drag edge to resize</div>
+    </div>
+  </div>
+  <div class="stats" id="statsBar"></div>
+  <div class="hdr-actions">
+    <button class="btn btn-outline" onclick="openAddModal()">+ Add Task</button>
+    <button class="btn btn-outline" id="toggleWeekRowBtn" onclick="toggleWeekRow()" title="Show/hide the date row">Hide dates</button>
+    <button class="btn btn-outline" onclick="triggerImport()" title="Import an XLSX exported from this app">⬆ Import XLSX</button>
+    <button class="btn btn-success" onclick="exportExcel()">⬇ Export XLSX</button>
+    <input type="file" id="importFile" accept=".xlsx,.xls" style="display:none" onchange="importExcel(this)">
+  </div>
+</div>
+
+<div class="filters">
+  <label>Team:</label>
+  <div class="filter-pills">
+    <div class="pill active-all" id="pill-all"  onclick="setTeamFilter('all')">All</div>
+    <div class="pill" id="pill-fundii" onclick="setTeamFilter('fundii')">fundii</div>
+    <div class="pill" id="pill-iic"   onclick="setTeamFilter('iic')">IIC</div>
+  </div>
+  <label style="margin-left:8px">Status:</label>
+  <select id="statusFilter" onchange="render()">
+    <option value="all">All tasks</option>
+    <option value="scheduled">Scheduled only</option>
+    <option value="unscheduled">Unscheduled only</option>
+  </select>
+  <label style="margin-left:8px">Search:</label>
+  <input type="text" id="searchBox" placeholder="Task name…" oninput="render()" style="width:140px">
+  <div class="legend" style="margin-left:auto">
+    <div style="display:flex;align-items:center;gap:4px"><div class="leg-dot" style="background:var(--blue)"></div>fundii</div>
+    <div style="display:flex;align-items:center;gap:4px"><div class="leg-dot" style="background:var(--orange)"></div>IIC</div>
+    <div style="display:flex;align-items:center;gap:4px"><div class="leg-dot" style="border:1.5px dashed #CBD5E1"></div>Unscheduled</div>
+    <div style="display:flex;align-items:center;gap:4px"><div style="width:3px;height:14px;background:var(--red);border-radius:1px"></div>Today</div>
+  </div>
+</div>
+
+<div class="gantt-wrap" id="ganttWrap">
+  <table class="gantt-table" id="ganttTable">
+    <thead id="ganttHead"></thead>
+    <tbody id="ganttBody"></tbody>
+  </table>
+</div>
+
+<!-- Edit/Add Modal -->
+<div class="overlay" id="modal">
+  <div class="modal">
+    <h3 id="modalTitle">Edit Task</h3>
+    <input type="hidden" id="editId">
+    <div class="modal-row">
+      <div class="modal-field">
+        <label>Team</label>
+        <select id="editTeam">
+          <option value="fundii">fundii</option>
+          <option value="iic">IIC</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-field">
+      <label>Task name</label>
+      <input type="text" id="editTask" placeholder="Task description">
+    </div>
+    <div class="modal-row">
+      <div class="modal-field">
+        <label>Start week</label>
+        <select id="editStart"><option value="">— Unscheduled —</option></select>
+      </div>
+      <div class="modal-field">
+        <label>End week</label>
+        <select id="editEnd"><option value="">— Unscheduled —</option></select>
+      </div>
+    </div>
+    <div class="modal-field">
+      <label>Details / Description</label>
+      <textarea id="editNote" placeholder="Task details, acceptance criteria, links…"></textarea>
+    </div>
+    <div class="modal-row">
+      <div class="modal-field">
+        <label>QA Start week</label>
+        <select id="editQaStart"><option value="">— None —</option></select>
+      </div>
+      <div class="modal-field">
+        <label>QA End week</label>
+        <select id="editQaEnd"><option value="">— None —</option></select>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-danger" id="modalDeleteBtn" onclick="deleteTask()">Delete</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-gray" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveTask()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── Data ─────────────────────────────────────────────────────────────────────
+const WEEKS = ["2026-05-04", "2026-05-11", "2026-05-18", "2026-05-25", "2026-06-01", "2026-06-08", "2026-06-15", "2026-06-22", "2026-06-29", "2026-07-06", "2026-07-13", "2026-07-20", "2026-07-27", "2026-08-03", "2026-08-10", "2026-08-17", "2026-08-24", "2026-08-31", "2026-09-07", "2026-09-14", "2026-09-21", "2026-09-28", "2026-10-05", "2026-10-12", "2026-10-19", "2026-10-26", "2026-11-02", "2026-11-09", "2026-11-16", "2026-11-23", "2026-11-30", "2026-12-07", "2026-12-14", "2026-12-21", "2026-12-28", "2027-01-04", "2027-01-11", "2027-01-18", "2027-01-25", "2027-02-01"];
+let TASKS   = [{"id":1,"team":"fundii","task":"Improvement - Cancel order, Vulnerable","start":"2026-05-04","end":"2026-05-11","qa_start":null,"qa_end":null,"details":"","note":""},{"id":2,"team":"fundii","task":"Add \"Trade\" in menu bar","start":"2026-05-04","end":"2026-05-11","qa_start":null,"qa_end":null,"details":"","note":""},{"id":3,"team":"fundii","task":"Change cut-off time period","start":"2026-05-04","end":"2026-05-11","qa_start":null,"qa_end":null,"details":"","note":""},{"id":4,"team":"fundii","task":"Add same bank more than once","start":"2026-05-18","end":"2026-07-06","qa_start":null,"qa_end":null,"details":"","note":""},{"id":5,"team":"fundii","task":"Cross AMC switching","start":"2026-06-08","end":"2026-06-22","qa_start":null,"qa_end":null,"details":"","note":""},{"id":6,"team":"fundii","task":"Revamp - TXN, Filters","start":"2026-06-29","end":"2026-07-13","qa_start":null,"qa_end":null,"details":"","note":""},{"id":7,"team":"fundii","task":"Portfolio - PDF Statement","start":"2026-07-13","end":"2026-07-20","qa_start":null,"qa_end":null,"details":"","note":""},{"id":8,"team":"fundii","task":"NAV Disclaimer","start":"2026-07-13","end":"2026-07-20","qa_start":null,"qa_end":null,"details":"","note":""},{"id":9,"team":"fundii","task":"Add new portfolio","start":"2026-07-13","end":"2026-07-20","qa_start":null,"qa_end":null,"details":"","note":""},{"id":10,"team":"fundii","task":"Revamp - Payment flow (TRN, QR)","start":"2026-07-27","end":"2026-08-03","qa_start":null,"qa_end":null,"details":"","note":""},{"id":11,"team":"fundii","task":"Fund Data - Add net flow & Dividend ranking","start":"2026-07-27","end":"2026-08-03","qa_start":null,"qa_end":null,"details":"","note":""},{"id":12,"team":"fundii","task":"Portfolio analysis","start":"2026-07-27","end":"2026-08-03","qa_start":null,"qa_end":null,"details":"","note":""},{"id":13,"team":"fundii","task":"Portfolio filters","start":"2026-08-10","end":"2026-08-24","qa_start":null,"qa_end":null,"details":"","note":""},{"id":14,"team":"fundii","task":"Joint account trading","start":"2026-08-10","end":"2026-08-31","qa_start":null,"qa_end":null,"details":"","note":""},{"id":15,"team":"fundii","task":"Update customer","start":"2026-08-24","end":"2026-08-31","qa_start":null,"qa_end":null,"details":"","note":""},{"id":16,"team":"iic","task":"Improvement - NAV, Customers","start":"2026-05-11","end":"2026-05-18","qa_start":null,"qa_end":null,"details":"","note":""},{"id":17,"team":"iic","task":"LINE - Vulnerable, EOD summary, PDF, Auto messages","start":null,"end":null,"qa_start":null,"qa_end":null,"details":"","note":""},{"id":18,"team":"iic","task":"Sell by lot & Realised P/L & Revise Customer's page","start":null,"end":null,"qa_start":null,"qa_end":null,"details":"","note":""},{"id":19,"team":"iic","task":"Improvement - Show XWT SUB","start":null,"end":null,"qa_start":null,"qa_end":null,"details":"","note":""},{"id":20,"team":"iic","task":"Improvement - TXN filters, Funds","start":null,"end":null,"qa_start":null,"qa_end":null,"details":"","note":""},{"id":21,"team":"iic","task":"Income - Show funds fee","start":null,"end":null,"qa_start":null,"qa_end":null,"details":"","note":""},{"id":22,"team":"iic","task":"Change cut-off time period","start":null,"end":null,"qa_start":null,"qa_end":null,"details":"","note":""},{"id":23,"team":"iic","task":"Notification for IIC (customer's TXN)","start":null,"end":null,"qa_start":null,"qa_end":null,"details":"","note":""},{"id":24,"team":"iic","task":"Income - Promotion / Referral fee","start":null,"end":null,"qa_start":null,"qa_end":null,"details":"","note":""},{"id":25,"team":"iic","task":"Improvement - Fund's weight","start":null,"end":null,"qa_start":null,"qa_end":null,"details":"","note":""},{"id":26,"team":"iic","task":"Improvement - Screenshot button","start":null,"end":null,"qa_start":null,"qa_end":null,"details":"","note":""},{"id":27,"team":"iic","task":"LINE - Support for >1 accountID","start":null,"end":null,"qa_start":null,"qa_end":null,"details":"","note":""}];
+// Normalize task objects to always have qa/details fields
+TASKS = TASKS.map(t=>({...t,qa_start:t.qa_start||null,qa_end:t.qa_end||null,details:t.details||''}));
+let nextId  = TASKS.reduce((m,t)=>Math.max(m,t.id),0)+1;
+
+// Week lookup
+const WEEK_IDX = {};
+WEEKS.forEach((w,i)=>WEEK_IDX[w]=i);
+
+// Compute month groupings
+function getMonths(){
+  const months=[]; let cur=null, cnt=0, si=0;
+  WEEKS.forEach((w,i)=>{
+    const m=w.slice(0,7);
+    if(m!==cur){
+      if(cur)months.push({label:new Date(cur+'-01').toLocaleDateString('en-GB',{month:'short',year:'2-digit'}),count:cnt,start:si});
+      cur=m;cnt=1;si=i;
+    }else cnt++;
+  });
+  if(cur)months.push({label:new Date(cur+'-01').toLocaleDateString('en-GB',{month:'short',year:'2-digit'}),count:cnt,start:si});
+  return months;
+}
+
+// Today's week index
+const TODAY = new Date().toISOString().slice(0,10);
+function todayWeekIdx(){
+  let best=-1;
+  WEEKS.forEach((w,i)=>{if(w<=TODAY)best=i;});
+  return best;
+}
+
+// ── Info popover ─────────────────────────────────────────────────────────────
+function toggleInfoPopover(e) {
+  e.stopPropagation();
+  document.getElementById('infoPopover').classList.toggle('open');
+}
+document.addEventListener('click', () => {
+  document.getElementById('infoPopover')?.classList.remove('open');
+});
+
+// ── Toggle week date row ──────────────────────────────────────────────────────
+let weekRowVisible = true;
+function toggleWeekRow() {
+  weekRowVisible = !weekRowVisible;
+  const row = document.querySelector('tr.row-week');
+  if (row) row.style.display = weekRowVisible ? '' : 'none';
+  const btn = document.getElementById('toggleWeekRowBtn');
+  btn.textContent = weekRowVisible ? 'Hide dates' : 'Show dates';
+}
+
+// ── Filters ──────────────────────────────────────────────────────────────────
+let teamFilter='all';
+function setTeamFilter(t){
+  teamFilter=t;
+  ['all','fundii','iic'].forEach(x=>{
+    const el=document.getElementById('pill-'+x);
+    el.className='pill'+(x===t?' active-'+t:'');
+  });
+  if(t==='all')document.getElementById('pill-all').className='pill active-all';
+  render();
+}
+function filteredTasks(){
+  const st=document.getElementById('statusFilter').value;
+  const q=document.getElementById('searchBox').value.toLowerCase();
+  return TASKS.filter(t=>{
+    if(teamFilter!=='all'&&t.team!==teamFilter)return false;
+    if(st==='scheduled'&&!t.start)return false;
+    if(st==='unscheduled'&&t.start)return false;
+    if(q&&!t.task.toLowerCase().includes(q))return false;
+    return true;
+  });
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+const CELL_W=36;
+
+function render(){
+  renderHead();
+  renderBody();
+  renderStats();
+}
+
+function renderHead(){
+  const months=getMonths();
+  const todayIdx=todayWeekIdx();
+
+  let h=`<tr class="row-month">
+    <th class="th-left col-team">Team</th>
+    <th class="th-left col-task">Task</th>
+`;
+  months.forEach(m=>{
+    h+=`<th colspan="${m.count}" style="text-align:left;padding-left:6px">${m.label}</th>`;
+  });
+  h+=`</tr><tr class="row-week">
+    <th class="th-left col-team" style="background:#F8FAFC;color:var(--muted)"></th>
+    <th class="th-left col-task" style="background:#F8FAFC;color:var(--muted)"></th>`;
+  WEEKS.forEach((w,i)=>{
+    const mon=new Date(w);
+    const fri=new Date(mon.getTime()+4*864e5); // Friday = Monday + 4 days
+    const dd=fri.getDate();
+    const isToday=(i===todayIdx);
+    const isMonthStart=(mon.getDate()<=7);
+    h+=`<th class="${isMonthStart?'month-start':''} ${isToday?'today':''}" title="${w}">${dd}</th>`;
+  });
+  h+=`</tr>`;
+  document.getElementById('ganttHead').innerHTML=h;
+  // Restore hidden state after re-render
+  if (!weekRowVisible) {
+    const row = document.querySelector('tr.row-week');
+    if (row) row.style.display = 'none';
+  }
+}
+
+// fundii SP1 = week index 0 (4 May), IIC SP1 = week index 1 (11 May)
+const SPRINT_START = { fundii: 0, iic: 1 };
+
+function buildSprintRow(team) {
+  const sprintCls = team === 'fundii' ? 'fundii-sp' : 'iic-sp';
+  const startIdx  = SPRINT_START[team];
+  let html = `<tr class="row-sprint">
+    <td class="col-team"></td>
+    <td class="col-task">Sprint</td>`;
+
+  let i = 0;
+  // Empty cells before SP1
+  while (i < startIdx) {
+    html += `<td class="sprint-cell sprint-gap"></td>`;
+    i++;
+  }
+  // Sprint cells — each spans 2 week columns
+  let spNum = 1;
+  while (i < WEEKS.length) {
+    const remaining = WEEKS.length - i;
+    const span = Math.min(2, remaining);
+    html += `<td colspan="${span}" class="sprint-cell ${sprintCls}">SP${spNum}</td>`;
+    i += span;
+    spNum++;
+  }
+
+  html += `</tr>`;
+  return html;
+}
+
+function buildSprintDateRow(team) {
+  const sprintCls = team === 'fundii' ? 'fundii-sp' : 'iic-sp';
+  const startIdx  = SPRINT_START[team];
+  let html = `<tr class="row-sprint-date">
+    <td class="col-team"></td>
+    <td class="col-task"></td>`;
+
+  let i = 0;
+  // Empty gap before SP1
+  while (i < startIdx) {
+    html += `<td class="sprint-date-cell sprint-gap"></td>`;
+    i++;
+  }
+  // Date cells spanning 2 columns each
+  while (i < WEEKS.length) {
+    const span = Math.min(2, WEEKS.length - i);
+    // Last Monday of this sprint + 7 days = Monday after sprint ends
+    const lastMonday = new Date(WEEKS[i + span - 1] + 'T00:00:00');
+    const nextMonday = new Date(lastMonday.getTime() + 7 * 864e5);
+    const dd = String(nextMonday.getDate()).padStart(2, '0');
+    const mm = String(nextMonday.getMonth() + 1).padStart(2, '0');
+    html += `<td colspan="${span}" class="sprint-date-cell ${sprintCls}">${dd}-${mm}</td>`;
+    i += span;
+  }
+
+  html += `</tr>`;
+  return html;
+}
+
+function renderBody(){
+  const tasks=filteredTasks();
+  const todayIdx=todayWeekIdx();
+  const months=getMonths();
+
+  // Group by team
+  const groups=[
+    {team:'fundii',label:'fundii  |  FE×3  BE×2  QA×2',tasks:tasks.filter(t=>t.team==='fundii')},
+    {team:'iic',   label:'IIC  |  FE×3  BE×3  QA×1',   tasks:tasks.filter(t=>t.team==='iic')},
+  ].filter(g=>g.tasks.length>0);
+
+  let html='';
+  groups.forEach(g=>{
+    const hdr_color=g.team==='fundii'?'var(--blue)':'var(--orange)';
+    html+=`<tr class="row-section" data-team="${g.team}">
+      <td colspan="${3+WEEKS.length}" style="background:${hdr_color}">${g.label}</td>
+    </tr>`;
+    html+=buildSprintRow(g.team);
+    html+=buildSprintDateRow(g.team);
+
+    g.tasks.forEach(t=>{
+      const si=t.start?WEEK_IDX[t.start]:-1;
+      const ei=t.end  ?WEEK_IDX[t.end]  :-1;
+      const isMonthStartSet=new Set(months.map(m=>m.start));
+
+      html+=`<tr class="task-row" data-id="${t.id}"
+        ondragover="rowDragOver(event,${t.id})"
+        ondrop="rowDrop(event,${t.id})"
+        ondragleave="rowDragLeave(event)">
+        <td class="col-team td-team"
+          draggable="true"
+          ondragstart="rowDragStart(event,${t.id})"
+          ondragend="rowDragEnd(event)"
+          title="Drag to reorder">
+          <span class="grab-handle">⠿</span>
+          <span style="background:${t.team==='fundii'?'var(--blue)':'var(--orange)'};color:#fff;padding:1px 5px;border-radius:10px;font-size:9px">${t.team==='fundii'?'FUN':'IIC'}</span>
+        </td>
+        <td class="col-task td-task" onclick="openEdit(${t.id})" title="Click to edit">${t.task}</td>`;
+
+      // Gantt cells
+      const qsi=t.qa_start?WEEK_IDX[t.qa_start]:-1;
+      const qei=t.qa_end  ?WEEK_IDX[t.qa_end]  :-1;
+      WEEKS.forEach((w,i)=>{
+        const isToday=(i===todayIdx);
+        const isMonthStart=isMonthStartSet.has(i)&&i>0;
+        const isAlt=(getMonthNum(w)%2===0);
+        let cls='gcell';
+        if(isAlt)cls+=' alt';
+        if(isToday)cls+=' today';
+        if(isMonthStart)cls+=' month-start';
+
+        let innerHtml='';
+        // DEV bar — rendered at its start cell, extends right via width
+        if(si>=0&&i===si){
+          const barW=(ei-si+1)*CELL_W;
+          const dur=ei-si+1;
+          const lbl='DEV';
+          const barcls=t.team==='fundii'?'fundii-dev':'iic-dev';
+          innerHtml+=`<div class="bar bar-dev ${barcls}"
+            style="left:0;width:${barW}px"
+            data-id="${t.id}" data-bartype="dev"
+            onmousedown="barMouseDown(event,${t.id},'dev')"
+            ondblclick="openEdit(${t.id})"
+            title="DEV: ${t.task} (${t.start} → ${t.end}, ${dur}wk)"
+          >${lbl}<div class="bar-resize" onmousedown="resizeMouseDown(event,${t.id},'dev')"></div></div>`;
+        }
+        // QA bar — rendered at its start cell
+        if(qsi>=0&&i===qsi){
+          const barW=(qei-qsi+1)*CELL_W;
+          const dur=qei-qsi+1;
+          const lbl='QA';
+          const barcls=t.team==='fundii'?'fundii-qa':'iic-qa';
+          innerHtml+=`<div class="bar bar-qa ${barcls}"
+            style="left:0;width:${barW}px"
+            data-id="${t.id}" data-bartype="qa"
+            onmousedown="barMouseDown(event,${t.id},'qa')"
+            ondblclick="openEdit(${t.id})"
+            title="QA: ${t.task} (${t.qa_start} → ${t.qa_end}, ${dur}wk)"
+          >${lbl}<div class="bar-resize" onmousedown="resizeMouseDown(event,${t.id},'qa')"></div></div>`;
+        }
+        // Unscheduled hint
+        if(si<0&&i===0){
+          innerHtml=`<div class="unscheduled-hint">click to schedule</div>`;
+        }
+
+        html+=`<td class="${cls}" data-taskid="${t.id}" data-wi="${i}"
+          onmousedown="cellMouseDown(event,${t.id},${i},event.shiftKey)"
+          onmouseenter="cellMouseEnter(event,${t.id},${i})"
+        ><div class="gcell-inner">${innerHtml}</div></td>`;
+      });
+      html+=`</tr>`;
+    });
+  });
+
+  document.getElementById('ganttBody').innerHTML=html;
+}
+
+function getMonthNum(w){return parseInt(w.slice(5,7));}
+
+function renderStats(){
+  const total=TASKS.length;
+  const scheduled=TASKS.filter(t=>t.start).length;
+  const fundiiCount=TASKS.filter(t=>t.team==='fundii').length;
+  const iicCount=TASKS.filter(t=>t.team==='iic').length;
+  document.getElementById('statsBar').innerHTML=`
+    <div class="stat-chip"><b>${total}</b> tasks total</div>
+    <div class="stat-chip"><b style="color:#6EE7B7">${scheduled}</b> scheduled</div>
+    <div class="stat-chip"><b style="color:#FCA5A5">${total-scheduled}</b> unscheduled</div>
+    <div class="stat-chip"><b>fundii</b> ${fundiiCount}</div>
+    <div class="stat-chip"><b>IIC</b> ${iicCount}</div>
+  `;
+}
+
+// ── Drag: New bar (click on empty cell) ──────────────────────────────────────
+let dragState=null;
+
+function cellMouseDown(e,taskId,wi,isQA=false){
+  const t=TASKS.find(x=>x.id===taskId);
+  if(!t)return;
+  if(isQA){
+    if(t.qa_start)return; // only on unscheduled QA
+    e.preventDefault();
+    dragState={type:'new',taskId,startWi:wi,endWi:wi,barType:'qa'};
+    previewDrag(taskId,wi,wi,'qa');
+  }else{
+    if(t.start)return; // only on unscheduled DEV
+    e.preventDefault();
+    dragState={type:'new',taskId,startWi:wi,endWi:wi,barType:'dev'};
+    previewDrag(taskId,wi,wi,'dev');
+  }
+}
+function cellMouseEnter(e,taskId,wi){
+  if(!dragState||dragState.type!=='new'||dragState.taskId!==taskId)return;
+  dragState.endWi=wi;
+  previewDrag(taskId,Math.min(dragState.startWi,wi),Math.max(dragState.startWi,wi),dragState.barType);
+}
+
+// ── Drag: Move bar ───────────────────────────────────────────────────────────
+function barMouseDown(e,taskId,barType){
+  if(e.target.classList.contains('bar-resize'))return;
+  e.preventDefault();e.stopPropagation();
+  const t=TASKS.find(x=>x.id===taskId);
+  const startW=barType==='qa'?t.qa_start:t.start;
+  const endW  =barType==='qa'?t.qa_end  :t.end;
+  const si=WEEK_IDX[startW],ei=WEEK_IDX[endW];
+  const startX=e.clientX;
+  dragState={type:'move',taskId,si0:si,ei0:ei,startX,barType};
+  document.body.style.cursor='grabbing';
+}
+
+// ── Drag: Resize bar ─────────────────────────────────────────────────────────
+function resizeMouseDown(e,taskId,barType){
+  e.preventDefault();e.stopPropagation();
+  const t=TASKS.find(x=>x.id===taskId);
+  const startW=barType==='qa'?t.qa_start:t.start;
+  const endW  =barType==='qa'?t.qa_end  :t.end;
+  const si=WEEK_IDX[startW],ei=WEEK_IDX[endW];
+  const startX=e.clientX;
+  dragState={type:'resize',taskId,si0:si,ei0:ei,startX,barType};
+  document.body.style.cursor='ew-resize';
+}
+
+document.addEventListener('mousemove',e=>{
+  if(!dragState)return;
+  if(dragState.type==='move'){
+    const dx=e.clientX-dragState.startX;
+    const dw=Math.round(dx/CELL_W);
+    const newSi=Math.max(0,Math.min(WEEKS.length-1,dragState.si0+dw));
+    const dur=dragState.ei0-dragState.si0;
+    const newEi=Math.min(WEEKS.length-1,newSi+dur);
+    previewDrag(dragState.taskId,newSi,newEi,dragState.barType);
+  } else if(dragState.type==='resize'){
+    const dx=e.clientX-dragState.startX;
+    const dw=Math.round(dx/CELL_W);
+    const newEi=Math.max(dragState.si0,Math.min(WEEKS.length-1,dragState.ei0+dw));
+    previewDrag(dragState.taskId,dragState.si0,newEi,dragState.barType);
+  }
+});
+
+document.addEventListener('mouseup',e=>{
+  if(!dragState)return;
+  const ds=dragState; dragState=null;
+  document.body.style.cursor='';
+  
+  const t=TASKS.find(x=>x.id===ds.taskId);
+  if(!t)return;
+  
+  const isQA=(ds.barType==='qa');
+  if(ds.type==='new'){
+    const si=Math.min(ds.startWi,ds.endWi);
+    const ei=Math.max(ds.startWi,ds.endWi);
+    if(isQA){t.qa_start=WEEKS[si];t.qa_end=WEEKS[ei];toast(`QA Scheduled: ${t.task.slice(0,28)} (${si===ei?1:ei-si+1} wk)`);}
+    else    {t.start   =WEEKS[si];t.end   =WEEKS[ei];toast(`DEV Scheduled: ${t.task.slice(0,26)} (${si===ei?1:ei-si+1} wk)`);}
+  } else if(ds.type==='move'){
+    const dx=e.clientX-ds.startX;
+    const dw=Math.round(dx/CELL_W);
+    const newSi=Math.max(0,Math.min(WEEKS.length-1,ds.si0+dw));
+    const dur=ds.ei0-ds.si0;
+    const newEi=Math.min(WEEKS.length-1,newSi+dur);
+    if(isQA){t.qa_start=WEEKS[newSi];t.qa_end=WEEKS[newEi];}
+    else    {t.start   =WEEKS[newSi];t.end   =WEEKS[newEi];}
+    toast(`Moved: ${t.task.slice(0,30)}`);
+  } else if(ds.type==='resize'){
+    const dx=e.clientX-ds.startX;
+    const dw=Math.round(dx/CELL_W);
+    const newEi=Math.max(ds.si0,Math.min(WEEKS.length-1,ds.ei0+dw));
+    if(isQA)t.qa_end=WEEKS[newEi];
+    else    t.end   =WEEKS[newEi];
+    toast(`Resized: ${t.task.slice(0,30)}`);
+  }
+  render();
+});
+
+function previewDrag(taskId,si,ei,barType){
+  // Update visual bar in DOM without full re-render
+  const t=TASKS.find(x=>x.id===taskId);
+  const isQA=(barType==='qa');
+  const row=document.querySelector(`tr[data-id="${taskId}"]`);
+  if(!row)return;
+  // Remove the bar being dragged (by type)
+  row.querySelectorAll(isQA?'.bar-qa':'.bar-dev').forEach(b=>b.remove());
+  // Find start cell inner div
+  const cells=row.querySelectorAll('.gcell');
+  const startCell=cells[si];
+  if(!startCell)return;
+  const inner=startCell.querySelector('.gcell-inner')||startCell;
+  const teamCls=t?t.team:'fundii';
+  const barcls=isQA?`${teamCls}-qa`:`${teamCls}-dev`;
+  const barPosCls=isQA?'bar-qa':'bar-dev';
+  const barW=(ei-si+1)*CELL_W;
+  const dur=ei-si+1;
+  const lbl=isQA?'QA':'DEV';
+  const bar=document.createElement('div');
+  bar.className=`bar ${barPosCls} ${barcls} bar-drag`;
+  bar.style.cssText=`left:0;width:${barW}px`;
+  bar.innerHTML=`${lbl}<div class="bar-resize"></div>`;
+  inner.appendChild(bar);
+}
+
+// ── Modal: Edit ───────────────────────────────────────────────────────────────
+function populateWeekSelects(start,end,qaStart,qaEnd){
+  const selStart=document.getElementById('editStart');
+  const selEnd=document.getElementById('editEnd');
+  const selQaS=document.getElementById('editQaStart');
+  const selQaE=document.getElementById('editQaEnd');
+  selStart.innerHTML='<option value="">— Unscheduled —</option>';
+  selEnd.innerHTML='<option value="">— Unscheduled —</option>';
+  selQaS.innerHTML='<option value="">— None —</option>';
+  selQaE.innerHTML='<option value="">— None —</option>';
+  WEEKS.forEach(w=>{
+    const d=new Date(w);
+    const lbl=d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+    selStart.innerHTML+=`<option value="${w}" ${w===start?'selected':''}>${lbl}</option>`;
+    selEnd.innerHTML+=`<option value="${w}" ${w===end?'selected':''}>${lbl}</option>`;
+    selQaS.innerHTML+=`<option value="${w}" ${w===qaStart?'selected':''}>${lbl}</option>`;
+    selQaE.innerHTML+=`<option value="${w}" ${w===qaEnd?'selected':''}>${lbl}</option>`;
+  });
+}
+
+function openEdit(taskId){
+  const t=TASKS.find(x=>x.id===taskId);
+  if(!t)return;
+  document.getElementById('modalTitle').textContent='Edit Task';
+  document.getElementById('editId').value=taskId;
+  document.getElementById('editTeam').value=t.team;
+  document.getElementById('editTask').value=t.task;
+  document.getElementById('editNote').value=t.details||'';
+  populateWeekSelects(t.start,t.end,t.qa_start,t.qa_end);
+  document.getElementById('modalDeleteBtn').style.display='';
+  document.getElementById('modal').classList.add('open');
+}
+
+function openAddModal(){
+  document.getElementById('modalTitle').textContent='Add New Task';
+  document.getElementById('editId').value='';
+  document.getElementById('editTeam').value='fundii';
+  document.getElementById('editTask').value='';
+  document.getElementById('editNote').value='';
+  populateWeekSelects(null,null,null,null);
+  document.getElementById('modalDeleteBtn').style.display='none';
+  document.getElementById('modal').classList.add('open');
+}
+
+function closeModal(){
+  document.getElementById('modal').classList.remove('open');
+}
+
+function saveTask(){
+  const id=parseInt(document.getElementById('editId').value)||0;
+  const team=document.getElementById('editTeam').value;
+  const taskName=document.getElementById('editTask').value.trim();
+  const start=document.getElementById('editStart').value||null;
+  const end=document.getElementById('editEnd').value||null;
+  const qa_start=document.getElementById('editQaStart').value||null;
+  const qa_end=document.getElementById('editQaEnd').value||null;
+  const details=document.getElementById('editNote').value.trim();
+
+  if(!taskName){alert('Task name is required.');return;}
+
+  if(id){
+    const t=TASKS.find(x=>x.id===id);
+    Object.assign(t,{team,task:taskName,start,end,qa_start,qa_end,details});
+    toast('Task updated');
+  }else{
+    TASKS.push({id:nextId++,team,task:taskName,start,end,qa_start,qa_end,details});
+    toast('Task added');
+  }
+  closeModal();render();
+}
+
+function deleteTask(){
+  const id=parseInt(document.getElementById('editId').value);
+  if(!id)return;
+  if(!confirm('Delete this task?'))return;
+  TASKS=TASKS.filter(t=>t.id!==id);
+  closeModal();render();
+  toast('Task deleted');
+}
+
+// Close modal on overlay click
+document.getElementById('modal').addEventListener('click',e=>{
+  if(e.target===document.getElementById('modal'))closeModal();
+});
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+function toast(msg){
+  const el=document.getElementById('toast');
+  el.textContent=msg;el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'),2200);
+}
+
+// ── Export XLSX ───────────────────────────────────────────────────────────────
+function exportExcel(){
+  const wb=XLSX.utils.book_new();
+
+  // Build sheet data
+  const rows=[];
+  // Header row — Tasks | Notes | [week dates…]
+  rows.push(['Tasks','Details','DEV Start','DEV End','QA Start','QA End',...WEEKS]);
+
+  // fundii section
+  rows.push(['fundii | FE×3 BE×2 QA×2','','','','','', ...Array(WEEKS.length).fill('')]);
+  TASKS.filter(t=>t.team==='fundii').forEach(t=>{
+    const row=[t.task,t.details||'',t.start||'',t.end||'',t.qa_start||'',t.qa_end||''];
+    WEEKS.forEach(w=>{
+      const dev=t.start&&t.end&&w>=t.start&&w<=t.end?'DEV':'';
+      const qa =t.qa_start&&t.qa_end&&w>=t.qa_start&&w<=t.qa_end?'QA':'';
+      row.push(dev&&qa?'DEV+QA':dev||qa||'');
+    });
+    rows.push(row);
+  });
+
+  rows.push([]);
+
+  // IIC section
+  rows.push(['IIC | FE 3 BE 3 QA 1','','','','','', ...Array(WEEKS.length).fill('')]);
+  TASKS.filter(t=>t.team==='iic').forEach(t=>{
+    const row=[t.task,t.details||'',t.start||'',t.end||'',t.qa_start||'',t.qa_end||''];
+    WEEKS.forEach(w=>{
+      const dev=t.start&&t.end&&w>=t.start&&w<=t.end?'DEV':'';
+      const qa =t.qa_start&&t.qa_end&&w>=t.qa_start&&w<=t.qa_end?'QA':'';
+      row.push(dev&&qa?'DEV+QA':dev||qa||'');
+    });
+    rows.push(row);
+  });
+
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=[{wch:35},{wch:30},{wch:12},{wch:12},{wch:12},{wch:12},...WEEKS.map(()=>({wch:7}))];
+  XLSX.utils.book_append_sheet(wb,ws,'Timeline');
+  XLSX.writeFile(wb,'Roadmap_Timeline_Export.xlsx');
+  toast('Exported → Roadmap_Timeline_Export.xlsx');
+}
+
+// ── Import XLSX ───────────────────────────────────────────────────────────────
+function triggerImport(){
+  document.getElementById('importFile').click();
+}
+
+function importExcel(input){
+  const file=input.files[0];
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      const wb=XLSX.read(e.target.result,{type:'binary'});
+      const ws=wb.Sheets['Timeline'];
+      if(!ws){alert('No "Timeline" sheet found in the file.\n\nMake sure you\'re importing a file exported from this app.');return;}
+
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      if(rows.length<2){alert('The Timeline sheet appears to be empty.');return;}
+
+      // Parse header: col0=Tasks, col1=Details, col2=DEV Start, col3=DEV End, col4=QA Start, col5=QA End, col6+=week dates
+      const hdr=rows[0].map(c=>String(c));
+      let notesCol=1; // Details column
+      let weekStartCol=6; // Week dates start after the 4 date columns
+
+      // Map column index → week date string
+      const colToWeek={};
+      for(let c=weekStartCol;c<hdr.length;c++){
+        if(/^\d{4}-\d{2}-\d{2}$/.test(hdr[c]))colToWeek[c]=hdr[c];
+      }
+
+      // Walk rows and collect tasks
+      const importedTasks=[];
+      let currentTeam=null;
+
+      for(let r=1;r<rows.length;r++){
+        const row=rows[r];
+        if(!row||row.every(c=>c===''||c===null||c===undefined))continue;
+
+        const col0=String(row[0]||'').toLowerCase().trim();
+        if(col0.startsWith('fundii')){currentTeam='fundii';continue;}
+        if(col0.startsWith('iic')){currentTeam='iic';continue;}
+        if(!currentTeam)continue;
+
+        const taskName=String(row[0]||'').trim();
+        if(!taskName)continue;
+
+        const note=notesCol>=0?String(row[notesCol]||'').trim():'';
+
+        // Derive start/end from ● marks
+        let start=null,end=null;
+        for(let c=weekStartCol;c<row.length;c++){
+          if(String(row[c]).trim()==='●'&&colToWeek[c]){
+            const w=colToWeek[c];
+            if(!start||w<start)start=w;
+            if(!end||w>end)end=w;
+          }
+        }
+
+        importedTasks.push({team:currentTeam,task:taskName,start,end,note});
+      }
+
+      if(importedTasks.length===0){
+        alert('No tasks found in the file.\n\nMake sure the file was exported from this Gantt app.');
+        input.value='';return;
+      }
+
+      // Merge: match existing tasks by team + task name → update; otherwise add
+      let updated=0,added=0,skipped=0;
+      importedTasks.forEach(imp=>{
+        const existing=TASKS.find(t=>
+          t.team===imp.team&&t.task.toLowerCase()===imp.task.toLowerCase()
+        );
+        if(existing){
+          existing.start=imp.start;
+          existing.end=imp.end;
+          existing.note=imp.note;
+          updated++;
+        }else{
+          TASKS.push({id:nextId++,...imp});
+          added++;
+        }
+      });
+
+      // Warn about tasks in current TASKS not present in import (not deleted, just noted)
+      const importedKeys=new Set(importedTasks.map(t=>t.team+'|'+t.task.toLowerCase()));
+      const missing=TASKS.filter(t=>!importedKeys.has(t.team+'|'+t.task.toLowerCase()));
+      if(missing.length>0)skipped=missing.length;
+
+      render();
+      let msg=`Imported: ${updated} updated, ${added} added`;
+      if(skipped>0)msg+=` · ${skipped} local-only tasks kept`;
+      toast(msg);
+      input.value=''; // reset so same file can re-trigger
+    }catch(err){
+      alert('Error reading file: '+err.message);
+      input.value='';
+    }
+  };
+  reader.readAsBinaryString(file);
+}
+
+// ── Row reorder (drag-to-reorder task rows) ───────────────────────────────────
+let dragRowId=null;
+
+function rowDragStart(e,taskId){
+  dragRowId=taskId;
+  e.dataTransfer.effectAllowed='move';
+  e.dataTransfer.setData('text/plain',taskId); // required for Firefox
+  // Defer opacity so drag ghost looks normal
+  setTimeout(()=>{
+    const row=document.querySelector(`tr[data-id="${taskId}"]`);
+    if(row)row.classList.add('row-dragging');
+  },0);
+}
+
+function rowDragEnd(e){
+  dragRowId=null;
+  document.querySelectorAll('.task-row').forEach(r=>{
+    r.classList.remove('row-dragging','row-drag-over');
+  });
+}
+
+function rowDragOver(e,taskId){
+  e.preventDefault();
+  if(!dragRowId||dragRowId===taskId)return;
+  const src=TASKS.find(t=>t.id===dragRowId);
+  const tgt=TASKS.find(t=>t.id===taskId);
+  // Only allow reorder within the same team
+  if(!src||!tgt||src.team!==tgt.team)return;
+  e.dataTransfer.dropEffect='move';
+  document.querySelectorAll('.task-row').forEach(r=>r.classList.remove('row-drag-over'));
+  const row=document.querySelector(`tr[data-id="${taskId}"]`);
+  if(row)row.classList.add('row-drag-over');
+}
+
+function rowDragLeave(e){
+  // Only clear if leaving the row entirely (not moving to a child)
+  if(!e.relatedTarget||!e.currentTarget.contains(e.relatedTarget)){
+    e.currentTarget.classList.remove('row-drag-over');
+  }
+}
+
+function rowDrop(e,taskId){
+  e.preventDefault();
+  if(!dragRowId||dragRowId===taskId)return;
+  const srcIdx=TASKS.findIndex(t=>t.id===dragRowId);
+  const tgtIdx=TASKS.findIndex(t=>t.id===taskId);
+  if(srcIdx===-1||tgtIdx===-1)return;
+  if(TASKS[srcIdx].team!==TASKS[tgtIdx].team){
+    toast('Can only reorder within the same team');return;
+  }
+  // Move src to target position
+  const [removed]=TASKS.splice(srcIdx,1);
+  const newTgt=TASKS.findIndex(t=>t.id===taskId);
+  TASKS.splice(newTgt,0,removed);
+  dragRowId=null;
+  render();
+  toast(`Moved: "${removed.task.slice(0,30)}" to new position`);
+}
+
+// ── Keyboard shortcuts ────────────────────────────────────────────────────────
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape')closeModal();
+  if((e.ctrlKey||e.metaKey)&&e.key==='z'){
+    // Undo last change — simple version: re-render
+    toast('Tip: use the edit modal to adjust tasks');
+  }
+});
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+render();
+// Scroll to today
+setTimeout(()=>{
+  const todayIdx=todayWeekIdx();
+  const wrap=document.getElementById('ganttWrap');
+  const leftW=388; // sticky cols width (team+feat+task)
+  wrap.scrollLeft=Math.max(0,(todayIdx-3)*CELL_W);
+},100);
+</script>
+</body>
+</html>
